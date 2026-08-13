@@ -1,0 +1,4 @@
+interface:
+  display_name: "Claude a Gutenberg FSE"
+  short_description: "Migra diseños de Claude a Gutenberg FSE"
+  default_prompt: "Usa $transform-claude-to-gutenberg para convertir este proyecto de Claude Code en un block theme editable dentro de mi sitio LocalWP."

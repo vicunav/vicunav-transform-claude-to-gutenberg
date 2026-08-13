@@ -1,0 +1,36 @@
+name: Atomic task
+description: Propose one verifiable change to the skill or its tooling.
+title: ""
+labels: []
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema observable
+      description: Describe el problema sin incluir datos privados ni artefactos de clientes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Alcance
+      description: Explica qué debe cambiar y qué queda fuera.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Criterios de aceptación
+      description: Enumera resultados verificables.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacidad
+      options:
+        - label: Confirmo que el issue no contiene secretos, datos personales ni contenido privado.
+          required: true
