@@ -7,7 +7,7 @@
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "validate:skill": "node scripts/validate-skill.mjs",
-    "validate:syntax": "node --check skills/transform-claude-to-gutenberg/scripts/audit_source.mjs && node --check skills/transform-claude-to-gutenberg/scripts/validate_fse_theme.mjs",
+    "validate:syntax": "node --check skills/transform-claude-to-gutenberg/scripts/audit_source.mjs && node --check skills/transform-claude-to-gutenberg/scripts/validate_fse_theme.mjs && node --check skills/transform-claude-to-gutenberg/scripts/validate_migration_manifest.mjs",
     "validate": "npm run validate:syntax && npm run validate:skill && npm test"
   },
   "engines": {

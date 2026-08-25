@@ -70,12 +70,14 @@ skills/transform-claude-to-gutenberg/
 ├── agents/openai.yaml
 ├── references/
 │   ├── localwp.md
+│   ├── migration-manifest.md
 │   ├── qa-checklist.md
 │   ├── source-contract.md
 │   ├── translation-map.md
 │   └── upstream.md
 └── scripts/
     ├── audit_source.mjs
+    ├── validate_migration_manifest.mjs
     └── validate_fse_theme.mjs
 ```
 
@@ -159,6 +161,13 @@ Validate an FSE theme:
 ```bash
 node skills/transform-claude-to-gutenberg/scripts/validate_fse_theme.mjs \
   /path/to/wp-content/themes/example-theme
+```
+
+Validate the required migration manifest and evidence index:
+
+```bash
+node skills/transform-claude-to-gutenberg/scripts/validate_migration_manifest.mjs \
+  /path/to/migration-manifest.json
 ```
 
 Run the repository checks:
