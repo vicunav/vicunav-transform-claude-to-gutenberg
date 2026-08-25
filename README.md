@@ -77,13 +77,18 @@ skills/transform-claude-to-gutenberg/
 │   └── upstream.md
 └── scripts/
     ├── audit_source.mjs
+    ├── capture_visual_evidence.mjs
+    ├── compare_visual_evidence.mjs
     ├── validate_migration_manifest.mjs
-    └── validate_fse_theme.mjs
+    ├── validate_fse_theme.mjs
+    ├── verify_visual_evidence.mjs
+    └── visual_evidence_lib.mjs
 ```
 
 ## Requirements
 
 - Node.js 20 or newer for the bundled scripts;
+- Chromium installed through the pinned Playwright version for visual capture;
 - a coding agent that supports Agent Skills, such as Codex or Claude Code;
 - a WordPress environment for implementation and visual verification;
 - LocalWP and WP-CLI when following the LocalWP workflow.
@@ -107,6 +112,8 @@ Clone this repository:
 ```bash
 git clone https://github.com/vicunav/vicunav-transform-claude-to-gutenberg.git
 cd vicunav-transform-claude-to-gutenberg
+npm ci
+npx playwright install chromium
 ```
 
 For Codex, link the skill into the personal skills directory:
@@ -167,6 +174,19 @@ Validate the required migration manifest and evidence index:
 
 ```bash
 node skills/transform-claude-to-gutenberg/scripts/validate_migration_manifest.mjs \
+  /path/to/migration-manifest.json
+```
+
+Capture and compare the indexed source and target states, then run the final gate:
+
+```bash
+npm ci
+npx playwright install chromium
+node skills/transform-claude-to-gutenberg/scripts/capture_visual_evidence.mjs \
+  /path/to/migration-manifest.json
+node skills/transform-claude-to-gutenberg/scripts/compare_visual_evidence.mjs \
+  /path/to/migration-manifest.json
+node skills/transform-claude-to-gutenberg/scripts/verify_visual_evidence.mjs \
   /path/to/migration-manifest.json
 ```
 

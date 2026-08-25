@@ -171,6 +171,12 @@ if (!isObject(manifest.environment)) {
   } else if (manifest.environment.fonts.some((font) => typeof font !== 'string' || font.trim() === '')) {
     addError('environment.fonts', 'invalid-font', 'Cada fuente debe ser un string no vacío.');
   }
+  if (
+    manifest.environment.ignoreHTTPSErrors !== undefined &&
+    typeof manifest.environment.ignoreHTTPSErrors !== 'boolean'
+  ) {
+    addError('environment.ignoreHTTPSErrors', 'invalid-boolean', 'Debe ser booleano cuando se declara.');
+  }
 }
 
 const viewports = Array.isArray(manifest.viewports) ? manifest.viewports : [];
@@ -222,6 +228,46 @@ for (const [index, surface] of surfaces.entries()) {
   if (new Set(surfaceViewports).size !== surfaceViewports.length) {
     addError(`surfaces[${index}].viewports`, 'duplicate-viewport-reference', 'No debe repetir viewports.');
   }
+  if (!isObject(surface.capture) || !isObject(surface.capture.states)) {
+    addError(`surfaces[${index}].capture`, 'required-capture', 'Debe declarar la preparación reproducible de estados.');
+  } else {
+    for (const state of states) {
+      const stateCapture = surface.capture.states[state];
+      if (!isObject(stateCapture)) {
+        addError(
+          `surfaces[${index}].capture.states.${state}`,
+          'required-state-capture',
+          'Debe declarar acciones separadas para source y target.',
+        );
+        continue;
+      }
+      for (const side of ['source', 'target']) {
+        const actions = stateCapture[side];
+        if (!Array.isArray(actions)) {
+          addError(
+            `surfaces[${index}].capture.states.${state}.${side}`,
+            'required-actions',
+            'Debe ser un array, aunque esté vacío.',
+          );
+          continue;
+        }
+        for (const [actionIndex, action] of actions.entries()) {
+          const field = `surfaces[${index}].capture.states.${state}.${side}[${actionIndex}]`;
+          if (
+            !isObject(action) ||
+            !['click', 'hover', 'focus', 'fill', 'press', 'wait-for', 'wait', 'scroll'].includes(action.action)
+          ) {
+            addError(field, 'invalid-capture-action', 'La acción de captura no está admitida.');
+          } else if (
+            ['click', 'hover', 'focus', 'fill', 'press', 'wait-for'].includes(action.action) &&
+            (typeof action.selector !== 'string' || action.selector.trim() === '')
+          ) {
+            addError(`${field}.selector`, 'required-selector', 'La acción requiere un selector no vacío.');
+          }
+        }
+      }
+    }
+  }
   for (const state of states) {
     for (const viewport of surfaceViewports) {
       expectedEvidence.add(`${surface.id}|${state}|${viewport}`);
@@ -253,6 +299,14 @@ if (assets === null) {
     requireString(asset, 'owner', `assets[${index}]`);
     requireString(asset, 'source', `assets[${index}]`);
     requireString(asset, 'license', `assets[${index}]`);
+    if (asset.status === 'approved-substitute') {
+      if (!isObject(asset.approval)) {
+        addError(`assets[${index}].approval`, 'required-approval', 'El sustituto requiere aprobación humana.');
+      } else {
+        requireString(asset.approval, 'authority', `assets[${index}].approval`);
+        requireString(asset.approval, 'reference', `assets[${index}].approval`);
+      }
+    }
   }
 }
 
@@ -274,7 +328,7 @@ for (const [index, item] of evidence.entries()) {
   if (!expectedEvidence.has(key)) {
     addError(`evidence[${index}]`, 'unexpected-evidence', `La combinación ${key} no fue declarada por una superficie.`);
   }
-  for (const field of ['sourceCapture', 'targetCapture', 'comparisonCapture']) {
+  for (const field of ['sourceCapture', 'targetCapture', 'comparisonCapture', 'overlayCapture', 'diffCapture']) {
     validateEvidencePath(item[field], `evidence[${index}].${field}`);
   }
   if (!['pending', 'matched', 'different', 'approved-difference'].includes(item.status)) {
@@ -297,6 +351,13 @@ for (const key of expectedEvidence) {
   if (!actualEvidence.has(key)) {
     addError('evidence', 'missing-evidence', `Falta la combinación ${key}.`);
   }
+}
+
+if (!isObject(manifest.report)) {
+  addError('report', 'required-object', 'Debe declarar las rutas de reporte JSON y HTML.');
+} else {
+  validateEvidencePath(manifest.report.json, 'report.json');
+  validateEvidencePath(manifest.report.html, 'report.html');
 }
 
 const report = {

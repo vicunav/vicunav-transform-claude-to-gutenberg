@@ -45,12 +45,13 @@ personales absolutas, URLs temporales ni referencias que escapen con `../`.
   },
   "environment": {
     "browser": "Chromium",
-    "browserVersion": "140",
+    "browserVersion": "auto",
     "locale": "es-VE",
     "timezone": "America/Caracas",
     "colorScheme": "light",
     "reducedMotion": "no-preference",
-    "fonts": ["Display Font 800", "Body Font 400"]
+    "fonts": ["Display Font 800", "Body Font 400"],
+    "ignoreHTTPSErrors": true
   },
   "viewports": [
     {
@@ -68,7 +69,17 @@ personales absolutas, URLs temporales ni referencias que escapen con `../`.
       "targetUrl": "https://example.local/",
       "fixture": "public-default",
       "states": ["default"],
-      "viewports": ["desktop"]
+      "viewports": ["desktop"],
+      "capture": {
+        "fullPage": true,
+        "readySelector": "main",
+        "states": {
+          "default": {
+            "source": [],
+            "target": []
+          }
+        }
+      }
     }
   ],
   "ownership": [
@@ -94,12 +105,19 @@ personales absolutas, URLs temporales ni referencias que escapen con `../`.
       "viewport": "desktop",
       "sourceCapture": "evidence/source/home-default-desktop.png",
       "targetCapture": "evidence/target/home-default-desktop.png",
-      "comparisonCapture": "evidence/comparison/home-default-desktop.png",
+      "comparisonCapture": "evidence/comparison/home-default-desktop-side-by-side.png",
+      "overlayCapture": "evidence/comparison/home-default-desktop-overlay.png",
+      "diffCapture": "evidence/comparison/home-default-desktop-diff.png",
       "status": "pending",
       "difference": null,
-      "approval": null
+      "approval": null,
+      "metrics": null
     }
-  ]
+  ],
+  "report": {
+    "json": "evidence/visual-report.json",
+    "html": "evidence/visual-report.html"
+  }
 }
 ```
 
@@ -109,10 +127,16 @@ personales absolutas, URLs temporales ni referencias que escapen con `../`.
 - `impact` acepta `ninguno`, `cambio-visual` o `paridad-1-1`.
 - Los commits usan hashes Git inmutables. El commit objetivo puede ser `null` mientras
   se implementa, pero debe fijarse antes del gate final.
+- `browserVersion` puede iniciar como `auto`; la primera captura la reemplaza por la
+  versión real. Las siguientes capturas fallan si usan otra versión.
 - Los IDs son únicos dentro de su colección y usan minúsculas, números y guiones.
 - Cada superficie declara al menos un estado y un viewport existente.
+- `capture.states` registra acciones separadas para fuente y objetivo en cada estado.
+  Las acciones admitidas son `click`, `hover`, `focus`, `fill`, `press`, `wait-for`,
+  `wait` y `scroll`. Un array vacío declara que la URL o fixture ya presenta el estado.
 - La matriz `evidence` contiene exactamente una fila por cada combinación declarada de
   superficie, estado y viewport.
+- Las cinco rutas de imagen y las dos rutas de reporte son relativas al manifiesto.
 - `pending` identifica trabajo no comprobado; no significa aprobado.
 - `approved-difference` requiere explicar `difference` y enlazar `approval.authority`
   y `approval.reference`.
@@ -129,5 +153,27 @@ node scripts/validate_migration_manifest.mjs \
 ```
 
 El comando comprueba estructura, IDs, referencias, matriz completa, rutas seguras y
-requisitos de aprobación. TOOL-VIS-02 añadirá el gate que inspecciona archivos de
-captura y resultados finales; este validador no afirma por sí solo paridad visual.
+requisitos de aprobación. El gate final inspecciona archivos, hashes y resultados;
+este validador estructural no afirma por sí solo paridad visual.
+
+## Evidencia reproducible
+
+Instalar las dependencias de desarrollo del repositorio y el navegador versionado:
+
+```bash
+npm ci
+npx playwright install chromium
+```
+
+Capturar, comparar y ejecutar el gate final:
+
+```bash
+node scripts/capture_visual_evidence.mjs docs/visual/migration-manifest.json
+node scripts/compare_visual_evidence.mjs docs/visual/migration-manifest.json
+node scripts/verify_visual_evidence.mjs docs/visual/migration-manifest.json
+```
+
+Los comandos resuelven las rutas desde el directorio del manifiesto y actualizan solo
+metadatos de evidencia. Cookies o sesiones se reciben mediante opciones CLI y nunca se
+guardan en el manifiesto. Revisar visualmente el lado a lado y el overlay antes de
+convertir `different` en `approved-difference`.

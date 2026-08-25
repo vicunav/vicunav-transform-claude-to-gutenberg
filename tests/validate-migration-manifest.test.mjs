@@ -53,9 +53,14 @@ function createManifest() {
         owner: 'organization/target',
         sourceUrl: 'http://127.0.0.1:5173/',
         targetUrl: 'https://example.local/',
-        fixture: 'public-default',
-        states,
-        viewports: viewports.map(({ id }) => id),
+      fixture: 'public-default',
+      states,
+      viewports: viewports.map(({ id }) => id),
+      capture: {
+        fullPage: true,
+        readySelector: 'main',
+        states: Object.fromEntries(states.map((state) => [state, { source: [], target: [] }])),
+      },
       },
     ],
     ownership: [{ id: 'global-tokens', kind: 'token', owner: 'organization/theme' }],
@@ -75,12 +80,18 @@ function createManifest() {
         viewport,
         sourceCapture: `evidence/source/home-${state}-${viewport}.png`,
         targetCapture: `evidence/target/home-${state}-${viewport}.png`,
-        comparisonCapture: `evidence/comparison/home-${state}-${viewport}.png`,
+        comparisonCapture: `evidence/comparison/home-${state}-${viewport}-side-by-side.png`,
+        overlayCapture: `evidence/comparison/home-${state}-${viewport}-overlay.png`,
+        diffCapture: `evidence/comparison/home-${state}-${viewport}-diff.png`,
         status: 'pending',
         difference: null,
         approval: null,
       })),
     ),
+    report: {
+      json: 'evidence/visual-report.json',
+      html: 'evidence/visual-report.html',
+    },
   };
 }
 
