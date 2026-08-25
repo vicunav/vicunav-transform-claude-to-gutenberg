@@ -90,7 +90,10 @@ Leer recursos propios cuando correspondan:
     errores. Revisar las advertencias aplicables.
 12. Completar QA visual, estructural, editorial, responsive, accesible y de
     rendimiento en frontend y Site Editor.
-13. Entregar evidencia, limitaciones, rollback y siguiente unidad de trabajo.
+13. Ejecutar captura, comparación y gate mediante
+    `capture_visual_evidence.mjs`, `compare_visual_evidence.mjs` y
+    `verify_visual_evidence.mjs`; revisar manualmente lado a lado y overlay.
+14. Entregar evidencia, limitaciones, rollback y siguiente unidad de trabajo.
 
 ## Mantener contratos no negociables
 
@@ -109,6 +112,7 @@ Leer recursos propios cuando correspondan:
   alternativo.
 - Mantener frontend y Site Editor como superficies obligatorias.
 - No implementar una migración visual sin manifiesto válido y matriz completa.
+- No convertir una métrica perceptual en aprobación automática de paridad.
 - No depender de estilos globales accidentales guardados en la base de datos.
 - Respetar `prefers-reduced-motion`, teclado, foco visible y WCAG 2.1 AA.
 - No inventar contenido, rutas o funcionalidades para cubrir vacíos del diseño.

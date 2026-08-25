@@ -13,6 +13,8 @@ submódulo `docs/standards/`.
 git clone --recurse-submodules \
   https://github.com/vicunav/vicunav-transform-claude-to-gutenberg.git
 cd vicunav-transform-claude-to-gutenberg
+npm ci
+npx playwright install chromium
 npm run validate
 ```
 
