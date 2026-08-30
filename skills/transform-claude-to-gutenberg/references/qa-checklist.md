@@ -58,9 +58,18 @@ No aceptar una diferencia clara solo porque la acción principal funcione.
 - [ ] Confirmar que no aparezcan bloques inválidos o recuperaciones pendientes.
 - [ ] Seleccionar y editar contenido, imágenes, botones y navegación.
 - [ ] Guardar una copia de prueba y comprobar que el frontend no se rompa.
-- [ ] Verificar que estilos de editor y frontend sean coherentes (requiere
-  `add_theme_support('editor-styles')` + `add_editor_style()` si el theme
-  encola su CSS solo vía `wp_enqueue_scripts`, que no llega al Site Editor).
+- [ ] Verificar que estilos de editor y frontend sean coherentes. No basta
+  con confirmar que `add_theme_support('editor-styles')` +
+  `add_editor_style()` existen: si el theme encola CSS condicional por
+  página/plantilla en `wp_enqueue_scripts` (ej. `assets/css/pages/*.css`),
+  ese CSS también debe llegar al array de `add_editor_style()` (con
+  `glob()` si el nombre de archivo depende del slug), o el editor nunca
+  reflejará colores/posiciones específicos de esa página aunque el
+  frontend se vea perfecto. Comprobarlo abriendo, para una muestra real de
+  páginas (no solo Home), la misma URL en una pestaña de frontend y en su
+  editor, y comparando colores, ancho de secciones y elementos decorativos
+  a simple vista; no solo confirmar que hay contenido. Ver
+  [translation-map.md](translation-map.md#gotchas-concretos-de-bloques-core).
 - [ ] Confirmar que customizaciones antiguas de Global Styles no oculten el
   resultado del theme.
 - [ ] Confirmar que no exista un título administrativo duplicado.

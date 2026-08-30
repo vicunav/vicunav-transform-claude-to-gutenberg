@@ -160,6 +160,51 @@ en `validate_fse_theme.mjs` (se indica entre paréntesis).
   `add_editor_style(...)` (en `after_setup_theme`), el editor renderiza los
   bloques sin ningún CSS del theme, lo que puede confundirse con "el editor
   está roto" cuando solo está sin estilos.
+- **`add_editor_style()` con un array fijo de CSS "global" no basta si el
+  theme también encola CSS condicional por página/plantilla** (ej.
+  `assets/css/pages/{slug}.css`, cargado en `wp_enqueue_scripts` solo cuando
+  `is_page()`/`is_front_page()` coincide con ese slug). El error se
+  descubrió así en vicunav-web: el H1 de Home usaba
+  `color:var(--color-light)` definido en `pages/home.css`, que nunca estaba
+  en el array de `add_editor_style()` (solo tokens/base/layout/components
+  globales), el editor mostraba el texto en el color oscuro por defecto
+  mientras el frontend se veía perfecto, y el bug afectaba a **las 15
+  páginas del sitio**, no solo a Home, porque ninguna cargaba su CSS propio
+  en el editor. Diagnóstico reproducible: en la consola del navegador (no
+  dentro del iframe, ya que ahí sí vive `document.styleSheets` del canvas),
+  `document.querySelector('iframe[name="editor-canvas"]').contentDocument.styleSheets`
+  y si el archivo de CSS de esa página no aparece entre las hojas cargadas
+  (aparecen como `(inline)`, ya que `add_editor_style()` inyecta el
+  contenido en vez de enlazar un `<link>`), ese es el archivo faltante.
+  Arreglo aplicado: en vez de listar cada `pages/{slug}.css` a mano,
+  `glob( get_stylesheet_directory() . '/assets/css/pages/*.css' )` y
+  agregarlos todos al array antes de llamar a `add_editor_style()`; como
+  cada archivo usa un prefijo de clase único por página, cargarlos todos a
+  la vez en el editor no genera colisiones. (chequeo:
+  `page-css-missing-from-editor-styles`, heurística a nivel de carpeta: no
+  puede resolver esto 100% estático porque el nombre del archivo por página
+  suele componerse dinámicamente, pero si ninguna subcarpeta de
+  `assets/css/` aparece ni como string literal en `add_editor_style()` ni
+  dentro de un `glob()` en `functions.php`, es señal fuerte de que esa
+  carpeta nunca llega al editor.)
+- **`align:"full"` en el atributo de un `core/group` no garantiza la clase
+  `alignfull` en el DOM del editor.** El editor de bloques clampea a 800px
+  cualquier bloque de nivel superior en `post_content` sin `alignfull`/
+  `alignwide` (`.is-root-container > :not(.alignfull)`, una regla propia del
+  editor que nunca existe en el frontend). Con `add_theme_support('align-wide')`
+  y `supports.align` habilitado, se esperaría que `"align":"full"` en el
+  atributo del bloque baste, pero en la versión de WordPress usada en
+  vicunav-web (7.1), un `core/group` con `layout.type:"default"` guardaba el
+  atributo `align:"full"` correctamente (confirmable con
+  `wp.data.select('core/block-editor').getBlocks()`, corrido en el documento
+  de nivel superior) sin que React aplicara la clase `alignfull` al elemento
+  renderizado en el DOM del iframe: una limitación de renderizado del
+  cliente, no un error de datos. Workaround robusto (no depender de que
+  WordPress aplique la clase): añadir una clase propia (ej.
+  `vicu-full-bleed`) directamente en el HTML guardado de cada sección de
+  nivel superior, y neutralizar el clamp del editor para esa clase con
+  `wp_add_inline_style('wp-edit-blocks', '.editor-styles-wrapper .is-root-container > .vicu-full-bleed{max-width:none !important;margin-left:0 !important;margin-right:0 !important;}')`
+  colgado de `enqueue_block_editor_assets`.
 - **Un bloque dinámico no puede anidarse como comentario dentro de
   `core/paragraph`**: `core/paragraph` guarda HTML plano, no bloques.
   Escribir `<!-- wp:post-terms /-->` dentro del contenido de un
@@ -185,15 +230,23 @@ en `validate_fse_theme.mjs` (se indica entre paréntesis).
   interactivo migrado de botón-JS a enlace real y añadir el reset si hace
   falta.
 - **Un placeholder vacío en el canvas del Site Editor no es prueba de un
-  bug de contenido.** Antes de asumir que un bloque está vacío o inválido
-  porque el canvas muestra "Group blocks together: Select a layout",
-  verificar el estado real del editor en la consola del navegador (correr
-  en el documento de nivel superior, no dentro del iframe del canvas, ya
-  que `wp` no existe ahí):
-  `wp.data.select('core/block-editor').getBlocks()`. Si `isValid` es
-  `true` y `innerBlocks` tiene el conteo esperado en todos los niveles, y
-  el frontend renderiza correctamente, es un glitch cosmético del canvas,
-  no un problema de datos; no seguir depurando esa pista.
+  bug de contenido, pero SÍ es una divergencia visual real que hay que
+  evitar, no ignorar.** Un `core/group` con cero `innerBlocks` dispara el
+  placeholder "Group blocks together: Select a layout" del editor de forma
+  intencional y documentada de Gutenberg, no es un dato inválido
+  (`wp.data.select('core/block-editor').getBlocks()`, corrido en el
+  documento de nivel superior, no dentro del iframe, mostrará `isValid:
+  true`), y el frontend nunca muestra ese placeholder. Como el pedido
+  original es "el editor debe verse igual al frontend", este placeholder sí
+  cuenta como bug de fidelidad visual aunque no sea bug de datos. La causa
+  típica: usar `core/group` para un div puramente decorativo sin contenido
+  editable (`.grain`, `.deco-ring`, `.deco-blob`, un separador visual). La
+  prevención, no el diagnóstico posterior, es la solución: cualquier
+  elemento decorativo sin contenido real desde el inicio va en `core/html`
+  con el `<div>` vacío verbatim, nunca en un `core/group` vacío. (chequeo:
+  `empty-group-should-be-html`, con la excepción explícita de un grupo cuyo
+  único hijo es un bloque dinámico autocerrado como `wp:post-content /-->`,
+  que sí es legítimo y no debe convertirse.)
 
 ## Evitar traducciones frágiles
 

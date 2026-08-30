@@ -61,6 +61,67 @@ function validateBlockMarkup(text, file, errors) {
   }
 }
 
+// Recorre el flujo de comentarios de bloque con una pila (igual que
+// validateBlockMarkup) para encontrar, por cada core/group, si tiene al
+// menos un bloque hijo real. Un core/group con cero innerBlocks dispara el
+// placeholder "Group blocks together: Select a layout" del editor aunque el
+// bloque sea válido e intencional (ej. un div decorativo .grain/.deco-ring
+// sin contenido), eso SÍ es una divergencia visual real entre editor y
+// frontend (el frontend nunca muestra ese placeholder). Ver
+// translation-map.md, "Gotchas concretos de bloques core".
+function findEmptyDecorativeGroups(text) {
+  const commentPattern = /<!--\s*(\/?)wp:([a-z0-9-]+(?:\/[a-z0-9-]+)?)([\s\S]*?)-->/g;
+  const events = [];
+  let match;
+  while ((match = commentPattern.exec(text)) !== null) {
+    const closing = match[1] === '/';
+    const selfClosing = !closing && /\/\s*$/.test(match[3]);
+    events.push({ start: match.index, end: commentPattern.lastIndex, closing, selfClosing, blockName: match[2] });
+  }
+
+  const emptyGroups = [];
+  const stack = [];
+  for (const ev of events) {
+    if (!ev.closing && !ev.selfClosing) {
+      stack.push({ ev, hasChildBlock: false });
+    } else if (ev.selfClosing) {
+      // Un hijo autocerrado (ej. <!-- wp:post-content /--> o
+      // <!-- wp:spacer /-->) cuenta como contenido real del padre aunque no
+      // tenga par de apertura/cierre propio; sin este caso, un core/group
+      // que solo envuelve wp:post-content se marcaba, incorrectamente,
+      // como "vacío".
+      if (stack.length > 0) stack[stack.length - 1].hasChildBlock = true;
+    } else if (ev.closing) {
+      const top = stack.pop();
+      if (!top) continue;
+      if (stack.length > 0) stack[stack.length - 1].hasChildBlock = true;
+      if (top.ev.blockName === 'group' && !top.hasChildBlock) {
+        emptyGroups.push(text.slice(top.ev.start, ev.end));
+      }
+    }
+  }
+  return emptyGroups;
+}
+
+// Un core/html es la elección correcta para markup decorativo sin
+// contenido real (ej. <div class="grain"></div>): no es "esconder contenido
+// que debería ser editable", que es lo que este chequeo busca prevenir. Solo
+// se marca error cuando el core/html envuelve algo más que un div vacío
+// (texto, atributos con contenido real, hijos), que es la señal real de que
+// se saltó la traducción a bloques editables.
+function findNonDecorativeHtmlBlocks(text) {
+  const htmlBlockPattern = /<!--\s*wp:html\s*-->([\s\S]*?)<!--\s*\/wp:html\s*-->/gi;
+  const nonDecorative = [];
+  for (const match of text.matchAll(htmlBlockPattern)) {
+    const inner = match[1].trim();
+    const isEmptyDecorativeDiv = /^<div(?:\s+[a-z-]+="[^"]*")*>\s*<\/div>$/i.test(inner);
+    if (!isEmptyDecorativeDiv) {
+      nonDecorative.push(inner);
+    }
+  }
+  return nonDecorative;
+}
+
 const themeArgument = process.argv[2];
 if (!themeArgument) {
   console.error('Uso: node validate_fse_theme.mjs <ruta-theme>');
@@ -133,6 +194,57 @@ if (fs.existsSync(stylePath)) {
   }
 }
 
+// El Site Editor / editor de bloques no hereda wp_enqueue_scripts (solo
+// frontend); add_editor_style() es la única vía. Un patrón común es un
+// array literal de CSS "global" en add_editor_style() más una carpeta de
+// CSS condicional por página/plantilla (ej. assets/css/pages/{slug}.css)
+// que solo se enqueue en el frontend según is_page()/is_front_page(). Si
+// ESA carpeta completa está ausente del array de add_editor_style(), el
+// editor nunca ve ningún estilo específico de página (colores, posiciones
+// decorativas) aunque el frontend se vea perfecto: un bug de sitio
+// completo, no de una sola página, y fácil de no notar porque el CSS base
+// (tokens/tipografía/layout compartido) sí carga bien. No se puede resolver
+// esto de forma 100% estática porque el nombre del archivo por página suele
+// componerse dinámicamente (`'pages/' . $slug . '.css'`), así que el
+// chequeo es a nivel de carpeta: si ninguno de los .css de una subcarpeta
+// de assets/css aparece en el array de add_editor_style(), es señal fuerte
+// de que esa subcarpeta es CSS por-página nunca reflejado en el editor.
+const functionsPath = path.join(themeRoot, 'functions.php');
+if (fs.existsSync(functionsPath)) {
+  const functionsText = fs.readFileSync(functionsPath, 'utf8');
+  const editorStyleCalls = [...functionsText.matchAll(/add_editor_style\(([\s\S]*?)\);/g)];
+  if (editorStyleCalls.length > 0) {
+    const editorStyleText = editorStyleCalls.map((m) => m[1]).join('\n');
+    const editorStyleBasenames = new Set(
+      [...editorStyleText.matchAll(/['"]([^'"]+\.css)['"]/g)].map((m) => m[1].split('/').pop()),
+    );
+    const cssRoot = path.join(themeRoot, 'assets', 'css');
+    if (fs.existsSync(cssRoot)) {
+      const subdirectories = fs
+        .readdirSync(cssRoot, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name);
+      // Cubrir también el caso recomendado por esta misma advertencia: un
+      // glob() sobre la subcarpeta, compuesto dinámicamente en tiempo de
+      // ejecución (no aparece como string literal de un archivo concreto).
+      const globCalls = [...functionsText.matchAll(/glob\(([\s\S]*?);/g)].map((m) => m[1]);
+      for (const subdirectory of subdirectories) {
+        const cssFiles = collectFiles(themeRoot, path.join('assets', 'css', subdirectory), new Set(['.css']));
+        if (cssFiles.length === 0) continue;
+        const noneRepresented = cssFiles.every((file) => !editorStyleBasenames.has(path.basename(file)));
+        const coveredByGlob = globCalls.some((call) => call.includes(subdirectory));
+        if (noneRepresented && !coveredByGlob) {
+          warnings.push({
+            file: 'functions.php',
+            code: 'page-css-missing-from-editor-styles',
+            message: `Ningún archivo de assets/css/${subdirectory}/ aparece en add_editor_style(). Si esta carpeta es CSS condicional por página/plantilla (enqueue dinámico en wp_enqueue_scripts), el editor nunca lo verá; agregar sus archivos (con glob() si el nombre depende del slug) al array de add_editor_style().`,
+          });
+        }
+      }
+    }
+  }
+}
+
 const markupFiles = [
   ...collectFiles(themeRoot, 'templates', new Set(['.html'])),
   ...collectFiles(themeRoot, 'parts', new Set(['.html'])),
@@ -145,11 +257,26 @@ for (const absolutePath of markupFiles) {
   const isTemplate = relativePath.startsWith('templates/') && relativePath.endsWith('.html');
   const templateFileName = path.basename(relativePath);
 
-  if (/<!--\s*wp:html(?:\s|\{|\/|-->)/i.test(text)) {
+  if (findNonDecorativeHtmlBlocks(text).length > 0) {
     errors.push({
       file: relativePath,
       code: 'opaque-html-block',
-      message: 'Se detectó core/html; traducir el contenido a bloques editables.',
+      message:
+        'Se detectó core/html con contenido real; traducir a bloques editables. (Un core/html con un único div vacío, sin texto ni atributos de contenido, es válido para markup decorativo sin contraparte editable, ej. .grain/.deco-ring/.deco-blob.)',
+    });
+  }
+
+  // Ver findEmptyDecorativeGroups arriba: un core/group con cero
+  // innerBlocks funciona pero produce el placeholder "Select a layout" del
+  // editor, una divergencia visual real frente al frontend. No es un error
+  // (el bloque es válido) pero sí una señal fuerte para convertirlo a
+  // core/html si es puramente decorativo.
+  for (const emptyGroupMarkup of findEmptyDecorativeGroups(text)) {
+    const classMatch = emptyGroupMarkup.match(/class="([^"]*)"/);
+    warnings.push({
+      file: relativePath,
+      code: 'empty-group-should-be-html',
+      message: `core/group sin innerBlocks (clase: "${classMatch ? classMatch[1] : '(sin clase)'}"). Muestra el placeholder "Select a layout" en el editor aunque el frontend no tenga ningún placeholder visible. Si es puramente decorativo (sin contenido editable), usar core/html con el div vacío en vez de core/group.`,
     });
   }
   if (/https?:\/\//i.test(text)) {
