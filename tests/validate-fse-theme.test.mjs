@@ -57,3 +57,67 @@ test('rechaza core/html y delimitadores de bloques desbalanceados', () => {
   assert.ok(report.errors.some((error) => error.code === 'opaque-html-block'));
   assert.ok(report.errors.some((error) => error.code === 'unclosed-block'));
 });
+
+function writeExtraTemplate(themeRoot, fileName, content) {
+  fs.writeFileSync(path.join(themeRoot, 'templates', fileName), content);
+}
+
+test('rechaza un page-{slug}.html sin wp:post-content (contenido hardcodeado en el template)', () => {
+  const themeRoot = createTheme(
+    '<!-- wp:group --><div class="wp-block-group"><!-- wp:paragraph --><p>Home</p><!-- /wp:paragraph --></div><!-- /wp:group -->\n',
+  );
+  writeExtraTemplate(
+    themeRoot,
+    'page-servicios.html',
+    '<!-- wp:template-part {"slug":"header"} /-->\n<!-- wp:group --><main><!-- wp:paragraph --><p>Copy único de Servicios, nunca editable desde la página</p><!-- /wp:paragraph --></main><!-- /wp:group -->\n<!-- wp:template-part {"slug":"footer"} /-->\n',
+  );
+  const result = spawnSync(process.execPath, [validatorScript, themeRoot], { encoding: 'utf8' });
+  const report = JSON.parse(result.stdout);
+
+  assert.equal(report.valid, false);
+  assert.ok(report.errors.some((error) => error.code === 'page-content-hardcoded-in-template'));
+});
+
+test('acepta page.html genérico que usa wp:post-content', () => {
+  const themeRoot = createTheme(
+    '<!-- wp:group --><div class="wp-block-group"><!-- wp:paragraph --><p>Home</p><!-- /wp:paragraph --></div><!-- /wp:group -->\n',
+  );
+  writeExtraTemplate(
+    themeRoot,
+    'page.html',
+    '<!-- wp:template-part {"slug":"header"} /-->\n<!-- wp:group {"tagName":"main"} --><main><!-- wp:post-content /--></main><!-- /wp:group -->\n<!-- wp:template-part {"slug":"footer"} /-->\n',
+  );
+  const result = spawnSync(process.execPath, [validatorScript, themeRoot], { encoding: 'utf8' });
+  const report = JSON.parse(result.stdout);
+
+  assert.equal(
+    report.errors.some((error) => error.code === 'page-content-hardcoded-in-template'),
+    false,
+  );
+});
+
+test('rechaza un comentario HTML que no es delimitador de bloque fuera de la primera línea', () => {
+  const themeRoot = createTheme(
+    '<!-- Fuente: docs/Componente.dc.html, líneas 1-10 -->\n<!-- wp:group --><div class="wp-block-group">\n<!-- TODO: brand dot decorativo -->\n<!-- wp:paragraph --><p>Texto</p><!-- /wp:paragraph -->\n</div><!-- /wp:group -->\n',
+  );
+  const result = spawnSync(process.execPath, [validatorScript, themeRoot], { encoding: 'utf8' });
+  const report = JSON.parse(result.stdout);
+
+  assert.equal(report.valid, false);
+  assert.ok(report.errors.some((error) => error.code === 'non-block-comment'));
+});
+
+test('advierte sobre layout.type constrained y className de core/query mal ubicado', () => {
+  const themeRoot = createTheme(
+    '<!-- wp:group {"layout":{"type":"constrained"}} --><div class="wp-block-group">\n' +
+      '<!-- wp:query {"query":{"postType":"post"},"className":"articulos-grid"} --><div class="wp-block-query">\n' +
+      '<!-- wp:post-template --><!-- /wp:post-template -->\n' +
+      '</div><!-- /wp:query -->\n' +
+      '</div><!-- /wp:group -->\n',
+  );
+  const result = spawnSync(process.execPath, [validatorScript, themeRoot], { encoding: 'utf8' });
+  const report = JSON.parse(result.stdout);
+
+  assert.ok(report.warnings.some((warning) => warning.code === 'constrained-layout-type'));
+  assert.ok(report.warnings.some((warning) => warning.code === 'query-classname-should-be-on-post-template'));
+});

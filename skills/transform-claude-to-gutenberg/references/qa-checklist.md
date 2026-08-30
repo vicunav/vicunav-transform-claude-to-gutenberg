@@ -41,13 +41,25 @@ No aceptar una diferencia clara solo porque la acción principal funcione.
 ## Gate 4: Gutenberg y Site Editor
 
 - [ ] Abrir cada template y página implicada en el editor.
+- [ ] Abrir cada página o post desde wp-admin → Páginas/Entradas → Editar
+  (no solo su template desde Apariencia → Editor) y confirmar que muestra
+  contenido real, editable y con conteo de palabras mayor a cero. Un
+  template `page-{slug}.html` o `single-{cpt}.html` sin
+  `<!-- wp:post-content /-->` casi siempre significa que el contenido quedó
+  hardcodeado ahí en vez de vivir en el post_content real; ver
+  [translation-map.md](translation-map.md#contenido-de-página-vs-contenido-de-template-error-real-ya-cometido).
 - [ ] Confirmar que no aparezcan bloques inválidos o recuperaciones pendientes.
 - [ ] Seleccionar y editar contenido, imágenes, botones y navegación.
 - [ ] Guardar una copia de prueba y comprobar que el frontend no se rompa.
-- [ ] Verificar que estilos de editor y frontend sean coherentes.
+- [ ] Verificar que estilos de editor y frontend sean coherentes (requiere
+  `add_theme_support('editor-styles')` + `add_editor_style()` si el theme
+  encola su CSS solo vía `wp_enqueue_scripts`, que no llega al Site Editor).
 - [ ] Confirmar que customizaciones antiguas de Global Styles no oculten el
   resultado del theme.
 - [ ] Confirmar que no exista un título administrativo duplicado.
+- [ ] Si una sección se repite con el mismo texto en más de una página,
+  confirmar que es un bloque reutilizable sincronizado o un patrón, no
+  markup copiado y pegado en cada template.
 
 ## Gate 5: accesibilidad
 
