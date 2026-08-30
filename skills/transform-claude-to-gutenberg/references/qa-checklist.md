@@ -1,5 +1,12 @@
 # Checklist de QA
 
+Esta checklist es la referencia manual. Cuando `unlazy` esté instalado, la
+contraparte ejecutable y reverificable de los puntos que sí pueden
+comandarse vive en
+[../templates/gates-fse-migration.md](../templates/gates-fse-migration.md):
+copiarla a un `GATES.md` por página o sección antes de implementar, no
+después de terminar.
+
 ## Gate 1: fuente reproducible
 
 - [ ] El proyecto de Claude Code instala y ejecuta desde un estado limpio.

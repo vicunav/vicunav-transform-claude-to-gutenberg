@@ -41,7 +41,11 @@ Aplicar los skills oficiales instalados según la fase:
 - `wp-block-themes`: implementar `theme.json`, templates, parts, patterns y
   estilos FSE;
 - `wp-block-development`: usar solo si una interacción exige un bloque custom;
-- `wp-wpcli-and-ops`: inspeccionar o cambiar contenido y opciones con WP-CLI.
+- `wp-wpcli-and-ops`: inspeccionar o cambiar contenido y opciones con WP-CLI;
+- `unlazy` (si está instalado): disciplina de cierre para una migración de
+  tamaño sustancial (más de una página, o cualquier trabajo que se vaya a
+  reportar como terminado sin supervisión constante). Ver "Cerrar cada
+  unidad con disciplina de gates" más abajo.
 
 Verificar primero la versión objetivo. Si un skill oficial apunta a una versión
 de WordPress posterior a la de LocalWP, usar únicamente las APIs compatibles y
@@ -60,7 +64,10 @@ Leer recursos propios cuando correspondan:
 - [qa-checklist.md](references/qa-checklist.md): antes de la primera sección
   visible y nuevamente antes de declarar terminado el trabajo;
 - [upstream.md](references/upstream.md): al actualizar, auditar o redistribuir
-  las bases reutilizadas.
+  las bases reutilizadas;
+- [templates/gates-fse-migration.md](templates/gates-fse-migration.md): al
+  abrir `$unlazy` para una página o sección, como ledger inicial a copiar y
+  completar en vez de escribir los gates desde cero.
 
 ## Ejecutar el flujo
 
@@ -82,7 +89,11 @@ Leer recursos propios cuando correspondan:
 8. Implementar primero una sección representativa. Comparar frontend y Site
    Editor antes de escalar el patrón al resto del sitio.
 9. Migrar página por página y sección por sección. Mantener el proyecto fuente
-   visible como referencia durante toda la implementación.
+   visible como referencia durante toda la implementación. Si `$unlazy` está
+   disponible, abrir una unidad copiando
+   [templates/gates-fse-migration.md](templates/gates-fse-migration.md) a un
+   `GATES.md` propio de esa página o sección antes de implementarla, no
+   después.
 10. Instalar o activar el theme en LocalWP mediante el flujo documentado del
    proyecto. Crear o actualizar contenido de forma idempotente y preservando lo
    existente.
@@ -93,7 +104,47 @@ Leer recursos propios cuando correspondan:
 13. Ejecutar captura, comparación y gate mediante
     `capture_visual_evidence.mjs`, `compare_visual_evidence.mjs` y
     `verify_visual_evidence.mjs`; revisar manualmente lado a lado y overlay.
+    Si la unidad tiene un `GATES.md`, correr
+    `node <skill-dir-de-unlazy>/scripts/gate-check.mjs --reverify GATES.md` y
+    exigir `ALL MET` antes de continuar.
 14. Entregar evidencia, limitaciones, rollback y siguiente unidad de trabajo.
+    Si se usó `$unlazy`, incluir los ids calificados de gates cumplidos, no
+    cumplidos y abandonados; no describir como terminada una unidad con un
+    gate pendiente o abandonado.
+
+## Cerrar cada unidad con disciplina de gates (`$unlazy`)
+
+Cuando `unlazy` esté instalado, tratarlo como la capa de disciplina de cierre
+de este skill, no como una alternativa a él: este skill decide **qué**
+verificar en una migración FSE; `unlazy` obliga a declarar esos criterios
+como comandos ejecutables antes de trabajar y a reverificarlos con
+evidencia real antes de reportar terminado, en vez de confiar en una lectura
+visual de "se ve bien".
+
+- Usar el modo **solo** de `unlazy` para una página o sección (un `GATES.md`
+  por unidad, copiado de
+  [templates/gates-fse-migration.md](templates/gates-fse-migration.md)).
+  Usar el modo **orquestado** solo para un sitio completo con muchas páginas
+  independientes, donde cada página es una hoja del Depth Tree con su propio
+  `OWNS:` (sus propios archivos de template/pattern) y una rama de
+  integración verifica navegación cruzada, header/footer compartidos y
+  ausencia de regresiones entre páginas.
+- No convertir cada corrección trivial en un ledger de gates. Reservar la
+  disciplina para una página, una migración de sitio completo, o cualquier
+  unidad cuyo costo de quedar silenciosamente incompleta lo justifique (ver
+  el ejemplo real: contenido hardcodeado en un template que dejó una página
+  vacía e ineditable durante varias unidades de trabajo antes de que el
+  dueño del sitio lo detectara manualmente).
+- Adaptar el gate de contenido real (`post_content` no vacío) a la
+  invocación de WP-CLI real del proyecto; en LocalWP casi nunca es el
+  binario `wp` global (ver [localwp.md](references/localwp.md)).
+- Un gate manual sigue siendo válido para lo que ningún comando puede medir
+  bien (fidelidad visual perceptual, revisión editorial de copy). No forzar
+  una métrica automática solo para evitar un gate manual; el contrato de
+  este skill ya prohíbe convertir una métrica perceptual en aprobación
+  automática de paridad.
+- No instalar el Stop hook opcional de `unlazy` sin pedirlo explícitamente
+  al usuario primero; el propio skill lo exige.
 
 ## Mantener contratos no negociables
 
