@@ -145,6 +145,15 @@ visual de "se ve bien".
   automática de paridad.
 - No instalar el Stop hook opcional de `unlazy` sin pedirlo explícitamente
   al usuario primero; el propio skill lo exige.
+- Enrutar el trabajo por el nivel de modelo que corresponda, tanto en modo
+  orquestado de `unlazy` como en la migración página por página de este
+  skill: una hoja mecánica y bien acotada (traducción directa de un
+  componente ya resuelto en otra página, un ajuste de clase, un fix
+  puntual ya diagnosticado) va a un modelo más liviano; una hoja que
+  requiere juicio de arquitectura, decidir bloque vs. pattern vs. CPT, o
+  cualquier verificación visual, la retiene el modelo de la sesión. No
+  repartir un agente completo por cada edición pequeña cuando agruparlas en
+  una sola pasada logra el mismo resultado con menos coordinación.
 
 ## Mantener contratos no negociables
 
