@@ -76,6 +76,46 @@ que exista una razón de compatibilidad documentada.
 - Para contenido repetible, decidir entre bloques, Query Loop, taxonomías y CPT
   según edición, volumen y reutilización, no por comodidad del prototipo.
 
+## Contenido de página vs. contenido de template (error real, ya cometido)
+
+Migrando vicunav-web se crearon 10 páginas completas con `wp post create`
+sin `--post_content`, y todo el copy real se hardcodeó dentro de
+`theme/templates/page-{slug}.html`. El frontend se veía perfecto (WordPress
+resuelve la plantilla por slug), pero cada página quedó vacía en la base de
+datos: abrir "Editar página" desde wp-admin, o abrir esa página (no la
+plantilla) desde el Site Editor, mostraba un lienzo en blanco sin nada que
+editar. El dueño del sitio lo detectó de inmediato al intentar editar una
+subpágina de servicios y preguntó, con razón, si el sitio era "realmente
+FSE" o solo HTML estático disfrazado de bloques.
+
+**Diagnóstico rápido:** si un archivo se llama `page-{slug}.html` o
+`single-{cpt}.html` y NO contiene un bloque `<!-- wp:post-content /-->`,
+casi seguro es contenido único hardcodeado que debería vivir en el
+`post_content` real de esa página o post. `scripts/validate_fse_theme.mjs`
+ahora detecta este patrón automáticamente (`page-content-hardcoded-in-template`).
+
+**Regla a seguir desde la primera página, no como corrección tardía:**
+
+- Crear cada página/post CON su contenido real desde el principio:
+  `wp post create ... --post_content="$(cat archivo-de-bloques.html)"`, o
+  editarlo después con `wp post update <id> --post_content=...`.
+- Usar un único template genérico por tipo (`templates/page.html`,
+  `templates/single.html`, `templates/single-{cpt}.html`): header + un
+  wrapper `core/group` (`tagName: main`) + `<!-- wp:post-content /-->` +
+  footer. Reservar un `page-{slug}.html` específico solo para chrome
+  realmente distinto de esa página (layout, no copy).
+- Antes de dar por cerrada la primera página migrada, abrirla desde
+  wp-admin → Páginas → Editar (no desde Apariencia → Editor → Plantillas) y
+  confirmar que el contenido es real y editable ahí. Repetirlo en la
+  primera unidad de cada página/CPT nuevo, no solo al final.
+- Si la misma sección (ej. una banda de CTA) va a aparecer con el mismo
+  texto en más de una página, no copiar y pegar el markup: usar un bloque
+  reutilizable sincronizado (`wp_block`, insertado como
+  `<!-- wp:block {"ref":ID} /-->`) cuando el texto deba ser idéntico en
+  todas partes, o un patrón registrado en `theme/patterns/*.php` (leído
+  automáticamente por WordPress desde esa carpeta, sin llamada de registro
+  manual) cuando la estructura se repite pero el texto cambia por página.
+
 ## Escalera de implementación
 
 Elegir la primera alternativa que cumpla el contrato:
@@ -89,6 +129,71 @@ Elegir la primera alternativa que cumpla el contrato:
 7. plugin de dominio o integración.
 
 Documentar la limitación concreta antes de avanzar al nivel siguiente.
+
+## Gotchas concretos de bloques core (evitar redescubrirlos)
+
+Aprendidos migrando vicunav-web. Revisar esta lista antes de reportar un bug
+de renderizado como misterioso; varios de estos ya tienen chequeo automático
+en `validate_fse_theme.mjs` (se indica entre paréntesis).
+
+- **`layout.type` "constrained" vs "default"**: "constrained" clampea los
+  hijos al `contentSize` de `theme.json` (pensado para columnas de lectura).
+  Usarlo en una sección full-bleed produce un "contenedor angosto" que
+  parece un bug de CSS pero es de configuración del bloque. Usar "default"
+  para secciones que deben ocupar el ancho completo. (chequeo:
+  `constrained-layout-type`)
+- **`className` de `core/button`**: WordPress espera el atributo en el
+  `<div class="wp-block-button ...">` exterior, no en el `<a>` interior.
+  Ponerlo en el `<a>` marca el bloque como inválido en el editor ("Block
+  contains unexpected or invalid content"), aunque el HTML se vea idéntico.
+  Si el botón no tiene color propio, WordPress pinta su propio fondo oscuro
+  por defecto en `.wp-block-button__link`; neutralizarlo con
+  `wp_add_inline_style()` si las clases reales del diseño ya definen el
+  color.
+- **Comentarios HTML sueltos dentro de un bloque**: cualquier `<!-- ... -->`
+  que no sea un delimitador `wp:`/`/wp:` rompe el parser si vive dentro de
+  un `core/group` u otro contenedor (ej. `<!-- TODO: ... -->`). Solo es
+  seguro como primera línea del archivo (cita de fuente). (chequeo:
+  `non-block-comment`)
+- **El Site Editor no hereda `wp_enqueue_scripts`**: ese hook es solo de
+  frontend. Sin `add_theme_support('editor-styles')` +
+  `add_editor_style(...)` (en `after_setup_theme`), el editor renderiza los
+  bloques sin ningún CSS del theme, lo que puede confundirse con "el editor
+  está roto" cuando solo está sin estilos.
+- **Un bloque dinámico no puede anidarse como comentario dentro de
+  `core/paragraph`**: `core/paragraph` guarda HTML plano, no bloques.
+  Escribir `<!-- wp:post-terms /-->` dentro del contenido de un
+  `<!-- wp:paragraph -->` no compone; el resultado queda fuera de flujo y
+  mal estilado. Usar bloques hermanos dentro de un `core/group` con
+  `layout: {"type":"flex"}` cuando se necesite un breadcrumb con un
+  segmento dinámico (ej. la categoría de un post).
+- **`core/query` no es el contenedor real de la grilla**: el `className`
+  puesto en `core/query` cae en el `<div class="wp-block-query ...">`, pero
+  las tarjetas repetidas viven dentro de `core/post-template`, que
+  WordPress renderiza como `<ul class="wp-block-post-template">` con un
+  `<li>` por elemento. Un CSS de grilla del diseño original (pensado para
+  un `<div>` plano de tarjetas) necesita el `className` en
+  `core/post-template`, no en `core/query`, y probablemente necesite
+  también un reset (`list-style:none;margin:0;padding:0`) para el `<ul>`
+  que el HTML original no tenía. (chequeo:
+  `query-classname-should-be-on-post-template`)
+- **Enlaces reales donde el prototipo usaba `<button>` o texto plano**:
+  convertir un filtro/chip/badge de `<button onClick>` a un `<a href>` real
+  (navegación real de WordPress) hereda el subrayado por defecto del
+  navegador si la clase CSS original nunca necesitó `text-decoration:none`
+  (porque nunca fue pensada para un `<a>`). Revisar cada elemento
+  interactivo migrado de botón-JS a enlace real y añadir el reset si hace
+  falta.
+- **Un placeholder vacío en el canvas del Site Editor no es prueba de un
+  bug de contenido.** Antes de asumir que un bloque está vacío o inválido
+  porque el canvas muestra "Group blocks together: Select a layout",
+  verificar el estado real del editor en la consola del navegador (correr
+  en el documento de nivel superior, no dentro del iframe del canvas, ya
+  que `wp` no existe ahí):
+  `wp.data.select('core/block-editor').getBlocks()`. Si `isValid` es
+  `true` y `innerBlocks` tiene el conteo esperado en todos los niveles, y
+  el frontend renderiza correctamente, es un glitch cosmético del canvas,
+  no un problema de datos; no seguir depurando esa pista.
 
 ## Evitar traducciones frágiles
 
