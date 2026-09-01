@@ -239,6 +239,61 @@ en `validate_fse_theme.mjs` (se indica entre paréntesis).
   fix (cambiar `layout.type` del padre) sobre el workaround de clase
   propia + `wp_add_inline_style()` del gotcha anterior: es la causa real,
   no un parche sobre el síntoma, y no requiere CSS adicional en el editor.
+- **Un `wp:template-part` con `"theme"` explícito en un template heredado
+  por un child theme nunca renderiza nada, ni en frontend ni en editor, sin
+  ningún error visible.** Migrando vicunav-demo-restaurante,
+  `templates/page.html`/`front-page.html` de `vicunav-theme-core`
+  (theme padre) referenciaban su propio header/footer con
+  `<!-- wp:template-part {"slug":"header-restaurant-inner","theme":"vicunav-theme-core"} /-->`.
+  Con el child theme `vicunav-bonasera` activo, ese bloque renderizaba
+  contenido vacío (`do_blocks()` sobre ese comentario a solas: `LEN=0`).
+  Causa raíz confirmada leyendo `wp-includes/blocks/template-part.php`
+  (`render_block_core_template_part()`): la función solo intenta resolver
+  el template part cuando `get_stylesheet() === $attributes['theme']`; con
+  el child activo, `get_stylesheet()` es `"vicunav-bonasera"`, nunca el
+  nombre del theme padre, así que la condición falla y la función retorna
+  sin buscar nada, ni siquiera intenta el fallback a archivo. La solución
+  **no** es poner el nombre del child theme a mano (rompería el mismo
+  template si algún día lo usa un theme padre distinto o el theme-core se
+  activa solo): es **omitir el atributo `"theme"` por completo**. WordPress
+  inyecta automáticamente el stylesheet activo en ese atributo al parsear
+  el bloque (`_inject_theme_attribute_in_template_part_block()`,
+  `wp-includes/block-template-utils.php`) **solo si el atributo no está ya
+  presente**; un theme padre que escribe sus propios templates sin fijar
+  `"theme"` sigue funcionando igual de bien activado directamente o como
+  padre de cualquier child futuro, sin tocar el archivo. Confirmado
+  reproduciendo el bug con `wp.data.resolveSelect` y con `do_blocks()`
+  directo antes de aceptar la causa.
+- **El editor de contenido de una página nunca muestra el header/footer de
+  la plantilla, ni siquiera cuando el template-part está perfectamente
+  resuelto.** Migrando vicunav-demo-restaurante, tras cablear
+  `wp:template-part` para header/footer en `page.html`/`front-page.html`
+  (ver el gotcha de arriba sobre `layout.type`), el frontend y la vista de
+  **plantilla** en el Site Editor (`Site Editor → Plantillas → Página`)
+  mostraban el header y el footer correctos, pero el editor de la página
+  individual (wp-admin → Páginas → Editar, o Site Editor → Páginas →
+  Editar) seguía sin mostrarlos, aunque
+  `wp.data.resolveSelect('core').getEntityRecord('postType','wp_template_part', id)`
+  resolvía el contenido real y sin ningún error de consola. Se descartó
+  timing/carga asíncrona como causa (aumentar la espera de 500ms a 15s no
+  cambió el resultado; el header incluso aparecía "OK" en algunas
+  corridas por una falsa coincidencia del propio script de verificación,
+  que compara por posición de índice, no por identidad del elemento) y se
+  descartó ownership de archivo (copiar el part directamente al child theme
+  activo no cambió nada). Confirmado por inspección visual directa
+  (captura de pantalla) que el lienzo de edición de una página SOLO
+  contiene el título y el `post-content` de esa página, nunca el chrome de
+  la plantilla, sin importar cuánto se espere o se haga scroll. Es
+  separación intencional contenido/plantilla de WordPress, no un defecto
+  de esta migración. **Consecuencia práctica para G9**: acotar siempre el
+  selector de `verify_editor_frontend_parity.mjs` a `.wp-block-post-content`
+  (ej. `.wp-block-post-content.alignfull, .wp-block-post-content
+  .alignfull`), nunca a `.alignfull` sin acotar, o cualquier página con
+  header/footer full-bleed reporta un falso `FALLO` en G9 que no tiene
+  arreglo posible del lado del theme. Para verificar que el header/footer
+  en sí están bien cableados, comparar el frontend contra la vista de
+  **plantilla** del Site Editor, no contra el editor de una página
+  individual.
 - **Un bloque `alignfull` puede no escapar de un padre `is-layout-constrained`
   ni siquiera en el frontend.** El gotcha anterior documenta el caso del
   editor; migrando vicunav-demo-restaurante se repitió la misma familia de

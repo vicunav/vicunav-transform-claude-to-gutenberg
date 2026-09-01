@@ -35,7 +35,7 @@ Scope: <página o sección> migrada del proyecto fuente a un block theme FSE, co
   EVIDENCE: pending
 
 - [ ] G9: cada sección full-bleed de la página ocupa el mismo porcentaje de ancho en frontend y en el Editor
-  CHECK: node <ruta-al-skill>/scripts/verify_editor_frontend_parity.mjs --frontend-url=<url-frontend> --editor-url=<url-editor> --cookies=<ruta-cookies.json> --selector=".alignfull"
+  CHECK: node <ruta-al-skill>/scripts/verify_editor_frontend_parity.mjs --frontend-url=<url-frontend> --editor-url=<url-editor> --cookies=<ruta-cookies.json> --selector=".wp-block-post-content.alignfull, .wp-block-post-content .alignfull"
   EXPECT: PARIDAD_EDITOR_FRONTEND_OK
   EVIDENCE: pending
 
@@ -76,7 +76,24 @@ contrato no negociable en SKILL.md).
 G9 solo aplica si la página tiene al menos una sección `alignfull`/
 `alignwide`; si no tiene ninguna, usa `ABANDON: G9 la página no tiene
 secciones full-bleed`. <ruta-cookies.json> se genera con
-`wp eval-file <ruta-al-skill>/scripts/wp_auth_cookies.php <user_id>`
+`wp eval-file <ruta-al-skill>/scripts/wp_auth_cookies.php <user_id>`.
+
+El selector de G9 se limita a `.wp-block-post-content` (el contenido propio
+de la página) a propósito, nunca a `.alignfull` sin acotar: el editor de
+contenido de página (post.php de wp-admin, o la vista de página del Site
+Editor) nunca renderiza el header/footer de la plantilla dentro de ese
+lienzo, ni siquiera cuando el template-part está bien resuelto y aparece
+correcto en el frontend y en la vista de la plantilla misma (Site Editor →
+Plantillas). Es un comportamiento real e intencional de WordPress
+(separación contenido/plantilla), no un bug de la migración: comparar
+`header`/`footer` contra ese editor de contenido siempre da `MISSING`,
+sin importar cuántas veces se reintente o cuánto se espere. Confirmado
+migrando vicunav-demo-restaurante, verificado por tres vías distintas
+(post.php, Site Editor → Páginas, Site Editor → Plantillas) antes de
+concluirlo. Si necesitas verificar que el header/footer en sí están bien
+cableados, compara el frontend contra la vista de **plantilla** en el Site
+Editor (`site-editor.php?p=/wp_template/<theme>//<slug>&canvas=edit`), no
+contra el editor de una página individual.
 (requiere `--url=` explícito apuntando al esquema real del sitio, http o
 https, o el script detecta el esquema equivocado y genera una cookie que
 WordPress rechaza). Ver references/translation-map.md, "Un bloque
