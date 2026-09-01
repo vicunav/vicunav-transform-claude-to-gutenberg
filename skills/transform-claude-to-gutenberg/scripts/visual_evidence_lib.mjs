@@ -113,7 +113,13 @@ export function parseOptions(argumentsList) {
       positional.push(argument);
       continue;
     }
-    const [name, inlineValue] = argument.slice(2).split('=', 2);
+    // No usar split('=', 2): trunca en cada '=' del argumento antes de aplicar
+    // el límite, así que un valor con '=' propio (ej. una URL con
+    // ?post=78&action=edit) perdía todo lo posterior al primer '=' interno.
+    const raw = argument.slice(2);
+    const separatorIndex = raw.indexOf('=');
+    const name = separatorIndex === -1 ? raw : raw.slice(0, separatorIndex);
+    const inlineValue = separatorIndex === -1 ? undefined : raw.slice(separatorIndex + 1);
     if (inlineValue !== undefined) {
       options.set(name, inlineValue);
     } else if (argumentsList[index + 1] && !argumentsList[index + 1].startsWith('--')) {

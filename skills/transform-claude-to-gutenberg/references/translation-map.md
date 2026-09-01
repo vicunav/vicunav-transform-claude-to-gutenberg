@@ -205,6 +205,46 @@ en `validate_fse_theme.mjs` (se indica entre paréntesis).
   nivel superior, y neutralizar el clamp del editor para esa clase con
   `wp_add_inline_style('wp-edit-blocks', '.editor-styles-wrapper .is-root-container > .vicu-full-bleed{max-width:none !important;margin-left:0 !important;margin-right:0 !important;}')`
   colgado de `enqueue_block_editor_assets`.
+- **Un bloque `alignfull` puede no escapar de un padre `is-layout-constrained`
+  ni siquiera en el frontend.** El gotcha anterior documenta el caso del
+  editor; migrando vicunav-demo-restaurante se repitió la misma familia de
+  bug pero del lado del frontend, con el editor comparativamente más cerca de
+  lo correcto. Causa raíz confirmada leyendo el CSS global generado por
+  WordPress en el navegador (no adivinada): `WP_Theme_JSON`/
+  `block-supports/layout.php` sí generaban
+  `.is-layout-constrained > .alignwide { max-width: var(--wp--style--global--wide-size); }`,
+  pero **no** una regla equivalente `.is-layout-constrained > .alignfull`
+  para el bloque dinámico `core/post-content` en WordPress 7.1 con este
+  árbol de bloques concreto, ni como regla global ni como el CSS con clase
+  única por instancia (`wp-container-content-N`) que ese archivo genera para
+  otros bloques con `supports.layout`. Sin esa regla, un hijo `alignfull` de
+  `wp:post-content` simplemente hereda el `width` de su padre constreñido:
+  visualmente se ve como una sección más angosta de lo esperado, no como un
+  bloque roto, así que se confunde fácil con "el CSS del theme está mal"
+  cuando el dato (`align:"full"`) y el CSS del patrón están correctos.
+  **No depender de que el núcleo genere esa regla condicional** (ya sea en
+  frontend o editor): en el CSS del propio patrón/theme, cualquier sección
+  que deba ser full-bleed se declara con la técnica autocontenida que
+  funciona sin importar el ancho del padre:
+  `width: auto; max-width: none; margin-inline: calc(50% - 50vw);`, en vez
+  de `width: 100%` (que solo llena al padre, heredando su constricción) o de
+  `width: 100vw` (que sí es autocontenido pero introduce desborde horizontal
+  en páginas con scrollbar vertical, porque `100vw` incluye su ancho).
+  **Verificación real, no visual:** `scripts/verify_editor_frontend_parity.mjs`
+  automatiza exactamente esta comparación: carga la misma URL en frontend y
+  en el Editor con una sesión autenticada real (cookies generadas por
+  `scripts/wp_auth_cookies.php`, ya que Playwright necesita un login válido
+  para abrir `post.php?action=edit`) y mide el ancho de cada sección de
+  nivel superior **como porcentaje del ancho de referencia de su propio
+  contexto** (`documentElement.clientWidth`), nunca en píxeles absolutos: el
+  iframe del editor dispone de menos ancho que el navegador (barra lateral,
+  chrome de wp-admin), así que comparar píxeles crudos entre ambos marca un
+  falso mismatch aunque los dos estén realmente a ancho completo dentro de
+  su propio contexto; este error de método se cometió armando el script por
+  primera vez y quedó documentado aquí para no repetirlo. Incluir esta
+  verificación como gate ejecutable (`CHECK:`/`EXPECT:` en `GATES.md`) para
+  cualquier página con al menos una sección full-bleed, no solo como
+  inspección manual puntual.
 - **Un bloque dinámico no puede anidarse como comentario dentro de
   `core/paragraph`**: `core/paragraph` guarda HTML plano, no bloques.
   Escribir `<!-- wp:post-terms /-->` dentro del contenido de un
@@ -247,6 +287,23 @@ en `validate_fse_theme.mjs` (se indica entre paréntesis).
   `empty-group-should-be-html`, con la excepción explícita de un grupo cuyo
   único hijo es un bloque dinámico autocerrado como `wp:post-content /-->`,
   que sí es legítimo y no debe convertirse.)
+
+- **Un slug de preset con un dígito pegado a una letra se renombra al compilar el
+  CSS**: WordPress genera el nombre de la custom property de un preset
+  (`--wp--preset--{categoría}--{slug}`) insertando un guion en cualquier frontera
+  dígito-letra del slug que no tenga ya un guion explícito. Un slug declarado como
+  `vicunav-space-2xs` en `theme.json` compila como
+  `--wp--preset--spacing--vicunav-space-2-xs`, no `...-2xs`. Cualquier CSS o pattern
+  que referencie `var(--wp--preset--spacing--vicunav-space-2xs)` nunca resuelve esa
+  variable, sin lanzar error: simplemente no aplica el valor, lo que se puede confundir
+  con "el preset no se está usando" en vez de "el nombre no coincide". Confirmado
+  comparando `WP_Theme_JSON_Resolver::get_theme_data()->get_settings()` (que sí
+  agrupa el slug tal cual está en `theme.json`, por origen) contra
+  `->get_stylesheet()` (que aplica esta normalización al emitir el CSS real): el
+  primero puede verse correcto mientras el segundo ya renombró el slug. Evitarlo
+  desde el nombre: usar convenciones sin dígitos para escalas extendidas (`xxs`,
+  `xxl`, o nombres semánticos como `space-section-lg`) en vez de `2xs`/`2xl`/`3xl`,
+  que es la convención más intuitiva pero la que dispara este renombrado.
 
 ## Evitar traducciones frágiles
 
