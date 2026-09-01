@@ -205,6 +205,40 @@ en `validate_fse_theme.mjs` (se indica entre paréntesis).
   nivel superior, y neutralizar el clamp del editor para esa clase con
   `wp_add_inline_style('wp-edit-blocks', '.editor-styles-wrapper .is-root-container > .vicu-full-bleed{max-width:none !important;margin-left:0 !important;margin-right:0 !important;}')`
   colgado de `enqueue_block_editor_assets`.
+- **Corrección al gotcha anterior: la causa real no es una "limitación de
+  renderizado del cliente", es que el contenedor padre usaba
+  `layout.type:"default"` en vez de `"constrained"`.** Migrando
+  vicunav-demo-restaurante se repitió el mismo síntoma (`align:"full"`
+  guardado correctamente, cero bloques inválidos, pero el editor nunca
+  aplicaba `alignfull` a ningún `core/group` hijo de nivel superior) y esta
+  vez se confirmó la causa exacta leyendo el bundle real
+  `wp-includes/js/dist/block-editor.js` del sitio, no adivinándola:
+  `packages/block-editor/build-module/hooks/align.mjs` decide la clase vía
+  `useAvailableAlignments()`, que para un theme con `theme.json`
+  (`settings.supportsLayout === true`) delega en
+  `layoutType.getAlignments(layout, isBlockBasedTheme)` del layout **del
+  padre** (no del bloque mismo). La implementación de Flow
+  (`layouts/flow.mjs`, usada por `layout.type:"default"`) tiene una rama
+  `if (!isBlockBasedTheme) { ...agrega "full"/"wide" si hay
+  contentSize/wideSize... }`: en un theme de bloques `isBlockBasedTheme` es
+  `true`, así que esa rama nunca se ejecuta y ningún hijo puede recibir
+  `full`/`wide`, sin importar el `theme.json` o `add_theme_support(
+  'align-wide')`. La implementación de Constrained (`layouts/constrained.mjs`)
+  no tiene ese veto: lee `contentSize`/`wideSize` directo y sí habilita
+  `full`/`wide` en los hijos. Es decir: **el padre inmediato de cualquier
+  sección full-bleed de nivel superior debe declarar
+  `"layout":{"type":"constrained"}`**, nunca `"default"`, en un theme de
+  bloques; esto incluye el propio `wp:post-content` del template
+  (`page.html`/`front-page.html`), que es casi siempre el padre real de las
+  secciones de una página compuesta en el editor de página/Site Editor.
+  `add_theme_support('align-wide')` se probó como hipótesis alterna y se
+  descartó explícitamente: con esa declaración activa pero el padre en
+  `"default"`, el síntoma persiste igual; con la declaración inactiva
+  (ningún theme de bloques por defecto de WordPress la declara) pero el
+  padre en `"constrained"`, el editor funciona correctamente. Preferir este
+  fix (cambiar `layout.type` del padre) sobre el workaround de clase
+  propia + `wp_add_inline_style()` del gotcha anterior: es la causa real,
+  no un parche sobre el síntoma, y no requiere CSS adicional en el editor.
 - **Un bloque `alignfull` puede no escapar de un padre `is-layout-constrained`
   ni siquiera en el frontend.** El gotcha anterior documenta el caso del
   editor; migrando vicunav-demo-restaurante se repitió la misma familia de
