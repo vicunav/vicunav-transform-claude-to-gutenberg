@@ -86,7 +86,33 @@ async function measureSections(page, url, { insideEditorCanvas }) {
   } else {
     await page.waitForSelector(selector, { timeout: 30000 }).catch(() => {});
   }
-  await page.waitForTimeout(500);
+
+  // Una página con varios bloques dinámicos (navigation, Query Loop sobre un
+  // CPT, patterns con datos reales) resuelve cada uno con su propia llamada
+  // REST asíncrona; un sleep fijo corto puede tomar la foto antes de que las
+  // últimas resuelvan, marcando secciones reales como "MISSING" de forma
+  // no determinística (falso negativo intermitente, no un bug de contenido).
+  // Se espera a que el número de nodos que matchean el selector dentro del
+  // propio contexto (frontend o editor) se estabilice, en vez de un tiempo
+  // fijo arbitrario.
+  await frame
+    .waitForFunction(
+      (sel) => {
+        const key = '__vicunavParityStableCount';
+        const current = document.querySelectorAll(sel).length;
+        if (window[key] === current) {
+          window[`${key}Hits`] = (window[`${key}Hits`] || 0) + 1;
+        } else {
+          window[key] = current;
+          window[`${key}Hits`] = 1;
+        }
+        return window[`${key}Hits`] >= 3;
+      },
+      selector,
+      { timeout: 6000, polling: 400 },
+    )
+    .catch(() => {});
+  await page.waitForTimeout(300);
 
   // Se mide como porcentaje del propio ancho de referencia del contexto
   // (documentElement.clientWidth), no como píxel absoluto: el iframe del
