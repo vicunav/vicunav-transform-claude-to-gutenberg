@@ -34,6 +34,11 @@ Scope: <página o sección> migrada del proyecto fuente a un block theme FSE, co
 - [ ] G8: accesibilidad WCAG 2.1 AA revisada (contraste, teclado, foco, headings)
   EVIDENCE: pending
 
+- [ ] G9: cada sección full-bleed de la página ocupa el mismo porcentaje de ancho en frontend y en el Editor
+  CHECK: node <ruta-al-skill>/scripts/verify_editor_frontend_parity.mjs --frontend-url=<url-frontend> --editor-url=<url-editor> --cookies=<ruta-cookies.json> --selector=".alignfull"
+  EXPECT: PARIDAD_EDITOR_FRONTEND_OK
+  EVIDENCE: pending
+
 <!--
 Reemplaza cada marcador de posición antes de correr el checker.
 
@@ -67,6 +72,16 @@ navegador headless, conviértelos en gates ejecutables. No conviertas G7 en
 automático solo porque exista una métrica de diferencia de píxeles: una
 métrica perceptual no es aprobación de paridad por sí sola (ver el
 contrato no negociable en SKILL.md).
+
+G9 solo aplica si la página tiene al menos una sección `alignfull`/
+`alignwide`; si no tiene ninguna, usa `ABANDON: G9 la página no tiene
+secciones full-bleed`. <ruta-cookies.json> se genera con
+`wp eval-file <ruta-al-skill>/scripts/wp_auth_cookies.php <user_id>`
+(requiere `--url=` explícito apuntando al esquema real del sitio, http o
+https, o el script detecta el esquema equivocado y genera una cookie que
+WordPress rechaza). Ver references/translation-map.md, "Un bloque
+alignfull puede no escapar de un padre is-layout-constrained ni siquiera
+en el frontend", para el diagnóstico completo si este gate falla.
 
 Antes de declarar terminada esta unidad, corre:
   node <ruta-a-unlazy>/scripts/gate-check.mjs --reverify GATES.md

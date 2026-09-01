@@ -136,7 +136,14 @@ if (!fs.existsSync(themeRoot) || !fs.statSync(themeRoot).isDirectory()) {
 
 const errors = [];
 const warnings = [];
-const requiredFiles = ['style.css', 'theme.json', 'templates/index.html'];
+const styleCssPath = path.join(themeRoot, 'style.css');
+const isChildTheme =
+  fs.existsSync(styleCssPath) && /^\s*Template:/m.test(fs.readFileSync(styleCssPath, 'utf8'));
+// Un child theme hereda templates/index.html del padre vía el header `Template:` de
+// style.css; exigirlo aquí produciría un falso positivo en cada child theme válido.
+const requiredFiles = isChildTheme
+  ? ['style.css', 'theme.json']
+  : ['style.css', 'theme.json', 'templates/index.html'];
 
 for (const relativePath of requiredFiles) {
   if (!fs.existsSync(path.join(themeRoot, relativePath))) {

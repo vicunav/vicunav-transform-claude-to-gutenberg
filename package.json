@@ -7,7 +7,7 @@
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "validate:skill": "node scripts/validate-skill.mjs",
-    "validate:syntax": "node --check skills/transform-claude-to-gutenberg/scripts/audit_source.mjs && node --check skills/transform-claude-to-gutenberg/scripts/validate_fse_theme.mjs && node --check skills/transform-claude-to-gutenberg/scripts/validate_migration_manifest.mjs && node --check skills/transform-claude-to-gutenberg/scripts/capture_visual_evidence.mjs && node --check skills/transform-claude-to-gutenberg/scripts/compare_visual_evidence.mjs && node --check skills/transform-claude-to-gutenberg/scripts/verify_visual_evidence.mjs && node --check skills/transform-claude-to-gutenberg/scripts/visual_evidence_lib.mjs",
+    "validate:syntax": "node --check skills/transform-claude-to-gutenberg/scripts/audit_source.mjs && node --check skills/transform-claude-to-gutenberg/scripts/validate_fse_theme.mjs && node --check skills/transform-claude-to-gutenberg/scripts/validate_migration_manifest.mjs && node --check skills/transform-claude-to-gutenberg/scripts/capture_visual_evidence.mjs && node --check skills/transform-claude-to-gutenberg/scripts/compare_visual_evidence.mjs && node --check skills/transform-claude-to-gutenberg/scripts/verify_visual_evidence.mjs && node --check skills/transform-claude-to-gutenberg/scripts/visual_evidence_lib.mjs && node --check skills/transform-claude-to-gutenberg/scripts/verify_editor_frontend_parity.mjs && php -l skills/transform-claude-to-gutenberg/scripts/wp_auth_cookies.php",
     "validate": "npm run validate:syntax && npm run validate:skill && npm test"
   },
   "engines": {

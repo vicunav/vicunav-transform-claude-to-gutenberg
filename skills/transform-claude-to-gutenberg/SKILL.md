@@ -104,7 +104,13 @@ Leer recursos propios cuando correspondan:
 13. Ejecutar captura, comparación y gate mediante
     `capture_visual_evidence.mjs`, `compare_visual_evidence.mjs` y
     `verify_visual_evidence.mjs`; revisar manualmente lado a lado y overlay.
-    Si la unidad tiene un `GATES.md`, correr
+    Para cada página con al menos una sección full-bleed, ejecutar además
+    `scripts/verify_editor_frontend_parity.mjs` (requiere una cookie de sesión
+    real generada con `scripts/wp_auth_cookies.php`, ver
+    [translation-map.md](references/translation-map.md)) y exigir
+    `PARIDAD_EDITOR_FRONTEND_OK`: la comparación visual humana no es
+    suficiente por sí sola para esta clase de bug, ya documentada dos veces
+    en este proyecto. Si la unidad tiene un `GATES.md`, correr
     `node <skill-dir-de-unlazy>/scripts/gate-check.mjs --reverify GATES.md` y
     exigir `ALL MET` antes de continuar.
 14. Entregar evidencia, limitaciones, rollback y siguiente unidad de trabajo.
