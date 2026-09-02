@@ -239,6 +239,37 @@ en `validate_fse_theme.mjs` (se indica entre paréntesis).
   fix (cambiar `layout.type` del padre) sobre el workaround de clase
   propia + `wp_add_inline_style()` del gotcha anterior: es la causa real,
   no un parche sobre el síntoma, y no requiere CSS adicional en el editor.
+- **Un fondo full-bleed correcto no significa que el contenido adentro
+  también esté al ancho correcto: puede perder un empate de especificidad
+  contra WordPress y quedar angosto en silencio.** Migrando
+  vicunav-demo-restaurante, el usuario reportó que el sitio se veía "mucho
+  más angosto" que el diseño real (comparado contra el canvas interactivo
+  de Claude Design, no solo el HTML exportado). El fondo de cada sección sí
+  llegaba a ancho completo (el gotcha de `margin-inline: calc(50% - 50vw)`
+  de más arriba ya estaba aplicado), pero el CONTENIDO adentro (encabezados,
+  columnas, un bloque dinámico completo) medía 672px en un viewport de
+  1792px, cuando el diseño real usaba 1240px para ese mismo tipo de
+  sección. La regla del theme que fijaba el ancho correcto
+  (`.seccion > * { max-width: 1240px; }`, especificidad de una clase) ya
+  existía, pero WordPress inyecta un `<style>` inline por cada bloque con
+  `layout.type:"constrained"`
+  (`.is-layout-constrained > :where(...) { max-width:
+  var(--wp--style--global--content-size); }`) que empata exactamente en
+  especificidad, porque `:where()` no aporta ninguna. Con especificidad
+  empatada gana quien aparece después en el documento, y ese `<style>`
+  inline de WordPress vive en el `<body>`, después de la hoja del theme
+  enlazada en el `<head>`, así que el `content-size` angosto de WordPress
+  ganaba en silencio, sin ningún error ni advertencia. Confirmado
+  inspeccionando `document.styleSheets` en el navegador real (recorriendo
+  cada hoja, comprobando `el.matches(regla.selectorText)` y comparando
+  especificidad), no adivinado. **Diagnóstico**: si una sección se ve de
+  ancho completo pero su contenido se ve angosto y centrado, medir el
+  contenido con `getBoundingClientRect().width` y compararlo contra
+  `getComputedStyle(document.body).getPropertyValue('--wp--style--global--content-size')`;
+  si coinciden, es este empate, no un valor de diseño incorrecto.
+  **Arreglo**: subir la especificidad de la regla del theme duplicando el
+  selector de clase (`.seccion.seccion > *`), sin `!important` y sin
+  depender del orden de aparición en el documento.
 - **Un `wp:template-part` con `"theme"` explícito en un template heredado
   por un child theme nunca renderiza nada, ni en frontend ni en editor, sin
   ningún error visible.** Migrando vicunav-demo-restaurante,
